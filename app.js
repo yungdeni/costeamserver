@@ -2,7 +2,8 @@ const express = require('express');
 const axios = require('axios')
 const fs = require("fs");
 const mongoose = require('mongoose')
-const Game = require('./models/game')
+const Game = require('./models/game');
+const game = require('./models/game');
 const app = express();
 const port = 3001;
 
@@ -14,20 +15,20 @@ const dbConnString = `mongodb+srv://denkar:${secrets.password}@costeamdb.rge7l.m
 mongoose.connect(dbConnString);
 
 
-const testGame = new Game({
-    headerimage: 'https://cdn.akamai.steamstatic.com/steam/apps/10/header.jpg?t=1602535893',
-    appid: 10,
-    multiplayer: true,
-    name: 'Counter-Strike',
-})
+// const testGame = new Game({
+//     headerimage: 'https://cdn.akamai.steamstatic.com/steam/apps/10/header.jpg?t=1602535893',
+//     appid: 10,
+//     multiplayer: true,
+//     name: 'Counter-Strike',
+// })
 
-testGame.save().then(result => {
-    console.log("saved")
-}).catch((error) => {
-    console.log(error);
-}).finally(() => {
-    mongoose.connection.close()
-})
+// testGame.save().then(result => {
+//     console.log("saved")
+// }).catch((error) => {
+//     console.log(error);
+// }).finally(() => {
+//     mongoose.connection.close()
+// })
 
 const getFriendsSteamIds = async (steamid) => {
     console.log(steamid)
@@ -83,6 +84,46 @@ const getCommonGames = async (steamids) => {
     return commonGames
 
 }
+const getAppDetailFromSteam = async (appid) => {
+    const url = `http://store.steampowered.com/api/appdetails/?appids=${appid}`
+    try {
+        let res = await axios.get(url);
+        //bracket notation to "dot into" the result json 
+        if (res.data[appid].success) {
+            return res.data[appid];
+        }
+        return undefined;
+        
+    }
+    catch (error){
+        console.error(error);
+        return undefined
+    }
+}
+
+const addMissingGameToDb = async (appid) => {
+    gameData = await getAppDetailFromSteam(appid);
+    if (gameData === undefined) {
+        console.log(`Appid: ${appid} could not be found from steam servers`)
+    }
+    else{
+        let isMulti = gameData.data.categories.some(function(o){return o["id"] === 1});
+        console.log(isMulti)
+        const gameToSave = new Game({
+            appid: gameData.data.steam_appid,
+            name: gameData.data.name,
+            headerimage: gameData.data.header_image,
+            multiplayer: isMulti
+        })
+        gameToSave.save().then(result => {
+            console.log(`saved appid: ${appid}`)
+        }).catch((error) => {
+            console.log(error);
+        })
+
+    }
+}
+
 const getOnlyDuplicates = (appids) => {
     return [...new Set(appids.filter((e, i, a) => a.indexOf(e) !== i))]
 }
@@ -104,12 +145,12 @@ app.get('/friends', async (req, res) => {
 
 });
 
-//let tesssst = await getCommonGames(['76561198055771121','76561198002549124','76561197962882171'])
+
 const tessst = async () => {
-    let bla = await getCommonGames(['76561198055771121','76561198002549124','76561197962882171'])
-    console.log(bla)
+    let bla = await addMissingGameToDb('570')
+    //console.log(bla)
 }
-//tessst()
+ tessst()
 
 app.get('/games', async (req, res) => {
     if (!Array.isArray(req.query.id)) {
@@ -134,3 +175,9 @@ app.listen(port, () => {
 });
 
 
+process.on('SIGINT', function() {
+    mongoose.connection.close(function () {
+      console.log('Mongoose disconnected on app termination');
+      process.exit(0);
+    });
+  });
