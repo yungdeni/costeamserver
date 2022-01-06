@@ -71,7 +71,7 @@ const getCommonGames = async (steamids) => {
     for (const id of steamids) {
         let games = await getOwnedGames(id);
         games = games.map(game => game.appid);
-        console.log(games)
+        //console.log(games)
         if (commonGames.length == 0) {
             commonGames = commonGames.concat(games);  
         }
@@ -108,7 +108,7 @@ const addMissingGameToDb = async (appid) => {
     }
     else{
         let isMulti = gameData.data.categories.some(function(o){return o["id"] === 1});
-        console.log(isMulti)
+        //console.log(isMulti)
         const gameToSave = new Game({
             appid: gameData.data.steam_appid,
             name: gameData.data.name,
@@ -132,6 +132,58 @@ const isValidSteamId = (steamid) => {
     return steamidValidation.test(steamid);
 }
 
+const filterElementsfromArray = (arrA, arrB) => {
+    const itemsToDelete = new Set(arrB);
+    const filtered = arrA.filter((v) => {
+        return !itemsToDelete.has(v);
+    })
+    return filtered
+}
+
+const returnGamesToFetch = async (appids) => {
+    try {
+        const results = await Game.find({appid: { $in: appids}});
+        var found = results.map(g => g.appid);
+        return filterElementsfromArray(appids,found);
+    }
+    catch (error) {
+        console.log(error);
+        }    
+    return undefined;
+}
+
+const getGamesFromDB = async (appids) => {
+    try {
+        const results = await Game.find({appid: { $in: appids}});
+        return results;
+    }
+    catch (error){
+        console.log(error);
+    }
+    return undefined;
+}
+
+const handleGamesRequest = async (steamids) => {
+    const gamesInCommon = await getCommonGames(steamids);
+    if (gamesInCommon.length == 0 || gamesInCommon == undefined) {
+        return {'Error': "No games in common or no data found"}
+    }
+    const gamesToFetch = await returnGamesToFetch(gamesInCommon);
+    if (gamesToFetch.length == 0 || gamesToFetch == undefined) {
+        return await getGamesFromDB(gamesInCommon);
+    }
+    else{
+        for (const g of gamesToFetch) {
+            await addMissingGameToDb(g);
+        }
+    }
+    return getGamesFromDB(gamesInCommon)
+}
+
+const f = async () => { let t =  await getGamesFromDB([730,10])
+    console.log(t)
+};
+//f()
 
 //example route http://localhost:3001/friends?id=76561198002549124
 app.get('/friends', async (req, res) => {
@@ -150,7 +202,7 @@ const tessst = async () => {
     let bla = await addMissingGameToDb('570')
     //console.log(bla)
 }
- tessst()
+
 
 app.get('/games', async (req, res) => {
     if (!Array.isArray(req.query.id)) {
@@ -158,7 +210,7 @@ app.get('/games', async (req, res) => {
     }
     else{
         if (req.query.id.every(isValidSteamId)) {
-            res.send(await getCommonGames(req.query.id))
+            res.send(await handleGamesRequest(req.query.id))
         }
         else {
             res.send("One or more steamids were invalid")
