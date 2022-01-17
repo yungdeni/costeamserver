@@ -15,6 +15,13 @@ const dbConnString = `mongodb+srv://denkar:${secrets.password}@costeamdb.rge7l.m
 mongoose.connect(dbConnString);
 
 
+
+app.use(function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+  });
+
 // const testGame = new Game({
 //     headerimage: 'https://cdn.akamai.steamstatic.com/steam/apps/10/header.jpg?t=1602535893',
 //     appid: 10,
@@ -163,6 +170,8 @@ const getGamesFromDB = async (appids) => {
     return undefined;
 }
 
+
+
 const handleGamesRequest = async (steamids) => {
     const gamesInCommon = await getCommonGames(steamids);
     if (gamesInCommon.length == 0 || gamesInCommon == undefined) {
@@ -180,10 +189,46 @@ const handleGamesRequest = async (steamids) => {
     return getGamesFromDB(gamesInCommon)
 }
 
-const f = async () => { let t =  await getGamesFromDB([730,10])
-    console.log(t)
-};
-//f()
+//slow, might need cachin or filtering out friends that have been logged off for a long time
+const handleReccomendRequest = async (steamid) => {
+    const currentTimestamp = Math.floor(Date.now() / 1000)
+    const monthinSec = 2629743
+    const friends = await getFriends(steamid)
+    const filteredFriends = friends.filter(friend => friend.communityvisibilitystate == 3 && friend.lastlogoff > (currentTimestamp - monthinSec))
+    console.log(friends.length)
+    console.log(filteredFriends.length)
+    const myGames = await getOwnedGames(steamid)
+    const myGamesMap = myGames.map(g => g.appid)
+    let gamesFriendsPlay = {};
+
+    for (const friend of filteredFriends) {
+        let games = await getOwnedGames(friend.steamid)
+       
+        
+        if (games != undefined) {
+            let gamesMap = games.map(g => { return {appid: g.appid, playtime_forever: g.playtime_forever}})
+            //console.log(gamesMap)
+            for (const game of gamesMap) {
+                if (myGamesMap.includes(game.appid)) {
+                    continue
+                }
+                else if (game.appid in gamesFriendsPlay) {
+                    gamesFriendsPlay[game.appid].playtime_forever += game.playtime_forever
+                    gamesFriendsPlay[game.appid].players += 1
+                }
+                else {
+                    gamesFriendsPlay[game.appid] = {players: 1, playtime_forever : game.playtime_forever}
+                }
+            }  
+        }
+        
+    }
+    let filtered = Object.fromEntries(Object.entries(gamesFriendsPlay).filter(([k,v]) => v.players > 2 && v.playtime_forever > 1000));
+
+    return filtered
+    
+}
+
 
 //example route http://localhost:3001/friends?id=76561198002549124
 app.get('/friends', async (req, res) => {
@@ -199,10 +244,10 @@ app.get('/friends', async (req, res) => {
 
 
 const tessst = async () => {
-    let bla = await addMissingGameToDb('570')
+    let bla = await handleReccomendRequest('76561198002549124')
     //console.log(bla)
 }
-
+//tessst()
 
 app.get('/games', async (req, res) => {
     if (!Array.isArray(req.query.id)) {
@@ -220,6 +265,14 @@ app.get('/games', async (req, res) => {
     
 })
 
+app.get('/reccomended', async (req, res) => {
+    if (isValidSteamId(req.query.id)) {
+        res.send(await handleReccomendRequest(req.query.id))
+    }
+    else {
+        res.send("Invalid steamid")
+    }
+})
 
 
 app.listen(port, () => {
