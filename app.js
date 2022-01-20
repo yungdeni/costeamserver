@@ -22,20 +22,6 @@ app.use(function(req, res, next) {
     next();
   });
 
-// const testGame = new Game({
-//     headerimage: 'https://cdn.akamai.steamstatic.com/steam/apps/10/header.jpg?t=1602535893',
-//     appid: 10,
-//     multiplayer: true,
-//     name: 'Counter-Strike',
-// })
-
-// testGame.save().then(result => {
-//     console.log("saved")
-// }).catch((error) => {
-//     console.log(error);
-// }).finally(() => {
-//     mongoose.connection.close()
-// })
 
 const getFriendsSteamIds = async (steamid) => {
     console.log(steamid)
@@ -72,7 +58,7 @@ const getOwnedGames = async (steamid) => {
         console.error(error);
     }
 }
-//should be fixed
+
 const getCommonGames = async (steamids) => {
     let commonGames = [];
     for (const id of steamids) {
@@ -190,7 +176,7 @@ const handleGamesRequest = async (steamids) => {
 }
 
 //slow, might need cachin or filtering out friends that have been logged off for a long time
-const handleReccomendRequest = async (steamid) => {
+const handleRecommendRequest = async (steamid) => {
     const currentTimestamp = Math.floor(Date.now() / 1000)
     const monthinSec = 2629743
     const friends = await getFriends(steamid)
@@ -244,10 +230,10 @@ app.get('/friends', async (req, res) => {
 
 
 const tessst = async () => {
-    let bla = await handleReccomendRequest('76561198002549124')
+    let bla = await handleRecommendRequest('76561198002549124')
     //console.log(bla)
 }
-//tessst()
+
 
 app.get('/games', async (req, res) => {
     if (!Array.isArray(req.query.id)) {
@@ -261,13 +247,13 @@ app.get('/games', async (req, res) => {
             res.send("One or more steamids were invalid")
         }
     }
-    //res.send(await getOwnedGames(req.query.id))
+
     
 })
 
-app.get('/reccomended', async (req, res) => {
+app.get('/recommended', async (req, res) => {
     if (isValidSteamId(req.query.id)) {
-        res.send(await handleReccomendRequest(req.query.id))
+        res.send(await handleRecommendRequest(req.query.id))
     }
     else {
         res.send("Invalid steamid")
@@ -276,7 +262,6 @@ app.get('/reccomended', async (req, res) => {
 
 
 app.listen(port, () => {
-    console.log("test")
 });
 
 
